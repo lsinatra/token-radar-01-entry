@@ -49,7 +49,7 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 
 // --- Constants (the model's stated parameters) ---------------------------
 
-const MODEL_VERSION = 'comps-1';
+const MODEL_VERSION = 'comps-2';
 const GROWTH_FLOOR = -60;
 const GROWTH_CAP = 120;
 const GROWTH_WEIGHT = 0.5;
@@ -59,6 +59,7 @@ const MATURITY_DAYS = 1095;
 const UNKNOWN_AGE_DAYS = 365;
 const TRIM_FRACTION = 0.05; // drop the top and bottom 5% of comps by multiple
 const SHRINK_K = 5; // category shrinkage: n / (n + 5)
+const MIN_CAT_N = 3; // categories with fewer than 3 comps get multiplier 1.0
 const MULT_MIN = 0.2;
 const MULT_MAX = 3;
 const CAPTURE_PCT = 0.01; // assumed airdrop share: 0.01% of implied value
@@ -187,6 +188,7 @@ interface Fit {
   compsExcluded: number;
   overallMedianMultiple: number;
   categoryMultipliers: Record<string, number>;
+  categoryCompCounts: Record<string, number>;
 }
 
 function fitComps(snapshot: Snapshot): Fit {
@@ -207,8 +209,20 @@ function fitComps(snapshot: Snapshot): Fit {
     byCategory.set(key, arr);
   }
   const categoryMultipliers: Record<string, number> = {};
+  const categoryCompCounts: Record<string, number> = {};
   for (const key of [...byCategory.keys()].sort()) {
     const mults = byCategory.get(key)!;
+    categoryCompCounts[key] = mults.length;
+    // A category multiplier is only evidence when it rests on at least
+    // MIN_CAT_N comps. One or two tokens can be 12x the median by luck
+    // (Risk Curators had a single comp, an oracle, at 2.97x) and would
+    // otherwise lift every protocol in that category to the top of the
+    // board. Below the minimum the multiplier is 1.0: the size curve
+    // alone prices the row.
+    if (mults.length < MIN_CAT_N) {
+      categoryMultipliers[key] = 1;
+      continue;
+    }
     const raw = median(mults) / overallMedianMultiple;
     const shrunk = 1 + (raw - 1) * (mults.length / (mults.length + SHRINK_K));
     categoryMultipliers[key] = round4(Math.min(MULT_MAX, Math.max(MULT_MIN, shrunk)));
@@ -221,6 +235,7 @@ function fitComps(snapshot: Snapshot): Fit {
     compsExcluded: traded.length - comps.length,
     overallMedianMultiple: round4(overallMedianMultiple),
     categoryMultipliers,
+    categoryCompCounts,
   };
 }
 
@@ -626,14 +641,22 @@ const live = liveRows(snapshot);
 const earlySize = board.filter((r) => !snapshot.watchlist.includes(r.slug)).length;
 
 // Category multipliers for the dashboard: every comps category, plus any
-// board category with no comps at 1.
+// board category with no comps at 1. The comp counts travel with them so
+// the page can show the evidence behind each multiplier (and the 3-comp
+// minimum that sends thin categories to 1.0).
 const categoryMultipliers: Record<string, number> = { ...fit.categoryMultipliers };
+const categoryCompCounts: Record<string, number> = { ...fit.categoryCompCounts };
 for (const r of board) {
   const key = r.category ?? 'Uncategorized';
   if (!(key in categoryMultipliers)) categoryMultipliers[key] = 1;
+  if (!(key in categoryCompCounts)) categoryCompCounts[key] = 0;
 }
 const sortedCategoryMultipliers: Record<string, number> = {};
-for (const key of Object.keys(categoryMultipliers).sort()) sortedCategoryMultipliers[key] = categoryMultipliers[key]!;
+const sortedCategoryCompCounts: Record<string, number> = {};
+for (const key of Object.keys(categoryMultipliers).sort()) {
+  sortedCategoryMultipliers[key] = categoryMultipliers[key]!;
+  sortedCategoryCompCounts[key] = categoryCompCounts[key] ?? 0;
+}
 
 const radar = {
   as_of: snapshot.as_of,
@@ -648,6 +671,8 @@ const radar = {
     comps_excluded: fit.compsExcluded,
     overall_median_multiple: fit.overallMedianMultiple,
     category_multipliers: sortedCategoryMultipliers,
+    category_comp_counts: sortedCategoryCompCounts,
+    min_category_comps: MIN_CAT_N,
     validation,
     capture_pct: CAPTURE_PCT,
     growth: { floor: GROWTH_FLOOR, cap: GROWTH_CAP, weight: GROWTH_WEIGHT },

@@ -83,9 +83,11 @@ function maturityParts(row) {
 function categoryParts(row) {
   var m = model();
   var map = (m && m.category_multipliers) || {};
+  var counts = (m && m.category_comp_counts) || {};
   var cat = row.category || null;
   var mult = (cat != null && map[cat] != null) ? map[cat] : 1;
-  return { category: cat, mult: mult, known: cat != null && map[cat] != null };
+  var n = (cat != null && counts[cat] != null) ? counts[cat] : 0;
+  return { category: cat, mult: mult, known: cat != null && map[cat] != null, comps: n };
 }
 
 function baseParts(row) {
@@ -100,7 +102,7 @@ function priceRow(row) {
       gr = growthParts(row), mt = maturityParts(row);
   return {
     base: bv.value, a: bv.a, b: bv.b,
-    category: cm.category, catMult: cm.mult, catKnown: cm.known,
+    category: cm.category, catMult: cm.mult, catKnown: cm.known, catComps: cm.comps,
     growth: gr, growthMult: gr.mult,
     maturity: mt, maturityMult: mt.mult,
     implied: bv.value * cm.mult * gr.mult * mt.mult
@@ -187,7 +189,8 @@ function renderHeader() {
     ["Board", rows.length + " rows",
       "watchlist " + wlCovered + "/" + wlTotal + " covered"],
     ["Comps", m && m.comps_n ? m.comps_n + " traded tokens" : "—",
-      m ? "median multiple " + fmtFactor(m.overall_median_multiple) + ", " + (m.comps_excluded || 0) + " outliers excluded" : ""]
+      m ? "median multiple " + fmtFactor(m.overall_median_multiple) + ", " + (m.comps_excluded || 0) + " outliers excluded" +
+        (m.min_category_comps ? " · categories with fewer than " + m.min_category_comps + " comps get multiplier 1.00" : "") : ""]
   ];
   document.getElementById("stats").innerHTML = stats.map(function (s) {
     return "<div><dt>" + s[0] + "</dt><dd>" + s[1] + "<small>" + s[2] + "</small></dd></div>";
@@ -312,6 +315,10 @@ function openDrawer(slug) {
   var netRecomputed = captureLow - (row.farm_cost_usd || 0);
   var steps = (row.farm_steps || []).map(stepText);
   var chains = (row.chains || []).join(", ");
+  var minCat = (m && m.min_category_comps) || 3;
+  var catNote = esc(p.category || "no category recorded") + " — " + p.catComps + " comp" + (p.catComps === 1 ? "" : "s");
+  if (p.catComps === 0) catNote += ", no comps multiplier, ×1.00";
+  else if (p.catComps < minCat) catNote += " (below the " + minCat + "-comp minimum, ×1.00)";
   var drawer = document.getElementById("drawer");
   drawer.innerHTML =
     '<button class="close" id="drawerClose" aria-label="Close detail">✕ Close</button>' +
@@ -326,7 +333,7 @@ function openDrawer(slug) {
     "<h3>Model breakdown — recomputed in this page</h3>" +
     '<table class="kv"><tbody>' +
     "<tr><td>Base value<br><span class=\"note\">exp(a + b · ln TVL), a = " + p.a.toFixed(2) + ", b = " + p.b.toFixed(3) + ", TVL " + fmtMoneyFull(row.tvl_usd) + "</span></td><td>" + fmtMoneyFull(p.base) + "</td></tr>" +
-    "<tr><td>Category multiplier<br><span class=\"note\">" + esc(p.category || "no category recorded") + (p.catKnown ? "" : " — no comps multiplier, ×1.00") + "</span></td><td>×" + p.catMult.toFixed(3) + "</td></tr>" +
+    "<tr><td>Category multiplier<br><span class=\"note\">" + catNote + "</span></td><td>×" + p.catMult.toFixed(3) + "</td></tr>" +
     "<tr><td>Growth multiplier<br><span class=\"note\">7d " + (p.growth.reported ? fmtPct(p.growth.raw) : "unreported → 0%") + " clamped to [" + p.growth.floor + "%, " + p.growth.cap + "%] → " + fmtPct(p.growth.clamped) + ", weight " + p.growth.weight + "</span></td><td>×" + p.growthMult.toFixed(3) + "</td></tr>" +
     "<tr><td>Maturity multiplier<br><span class=\"note\">age " + p.maturity.age + "d" + (p.maturity.unknown ? " (unknown — " + m.maturity.unknown_age_days + "d assumed)" : "") + ", floor " + p.maturity.floor + " + min(age, " + p.maturity.days + ")/" + p.maturity.days + " × " + p.maturity.range + "</span></td><td>×" + p.maturityMult.toFixed(3) + "</td></tr>" +
     "<tr><td><b>Recomputed implied value</b><br><span class=\"note\">base × category × growth × maturity, computed here from the snapshot figures</span></td><td><b>" + fmtMoneyFull(p.implied) + "</b></td></tr>" +
