@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Radar — pre-token launch board</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="title-row">
+    <div>
+      <h1>TOKEN RADAR <span class="accent">/ pre-token launch board</span></h1>
+      <p class="sub">Every protocol that records no token, priced off the tokens that already trade. An implied value is this entry&rsquo;s own claim — not a prediction of whether or when a token launches.</p>
+    </div>
+    <div class="model-badge" id="modelBadge">comps-1</div>
+  </div>
+  <dl class="stats" id="stats"></dl>
+  <p class="honest" id="honestNote"></p>
+</header>
+
+<main>
+  <section class="controls">
+    <input id="search" type="search" placeholder="Search name or slug&hellip;" aria-label="Search protocols" autocomplete="off">
+    <select id="catFilter" aria-label="Filter by category">
+      <option value="">All categories</option>
+    </select>
+    <div class="tabs" role="tablist" aria-label="Board view">
+      <button id="tabPre" class="tab active" role="tab" aria-selected="true">Pre-token <span id="preCount"></span></button>
+      <button id="tabLive" class="tab" role="tab" aria-selected="false">Live tokens <span id="liveCount"></span></button>
+    </div>
+  </section>
+
+  <p class="meta-line" id="metaLine"></p>
+
+  <div class="table-wrap">
+    <table id="board">
+      <thead>
+        <tr>
+          <th data-sort="rank" class="num sortable">Rank</th>
+          <th>Protocol</th>
+          <th>Category</th>
+          <th data-sort="tvl" class="num sortable">TVL</th>
+          <th data-sort="change" class="num sortable">7d %</th>
+          <th data-sort="age" class="num sortable">Age</th>
+          <th data-sort="implied" class="num wide sortable">Implied value</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody id="boardBody"></tbody>
+    </table>
+
+    <table id="liveTable" class="hidden">
+      <thead>
+        <tr>
+          <th>Protocol</th>
+          <th>Category</th>
+          <th class="num">TVL</th>
+          <th class="num">Market cap</th>
+          <th class="num">7d %</th>
+          <th class="num">Mcap / TVL</th>
+        </tr>
+      </thead>
+      <tbody id="liveBody"></tbody>
+    </table>
+
+    <p id="emptyState" class="empty hidden">No protocols match this filter.</p>
+  </div>
+
+  <p class="foot" id="footNote"></p>
+</main>
+
+<div id="overlay" class="overlay hidden"></div>
+<aside id="drawer" class="drawer hidden" aria-label="Protocol detail"></aside>
+
+<script src="../data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
